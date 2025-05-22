@@ -10,7 +10,7 @@ add_link_options(-fsanitize=address -fsanitize=undefined)
 
 add_executable (calc
 	./src/main.c
-	./src/tokenizer.c
+	./src/match.c
 )
 target_include_directories(calc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
