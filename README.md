@@ -1,1 +1,1 @@
-# yet-another-calculator
+# yet-another-calculator-c
