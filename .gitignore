@@ -1,0 +1,10 @@
+*.o
+*.so
+__pycache__/
+build/
+docs/
+.cache
+.vs
+external/imgui
+html/
+images/
