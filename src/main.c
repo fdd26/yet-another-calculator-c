@@ -8,7 +8,6 @@
 #include "string_view.h"
 
 enum Lexeme {
-  LEX_DEFAULT = 0,
   LEX_NUM,
   LEX_PLUS,
   LEX_TIMES,
@@ -16,14 +15,15 @@ enum Lexeme {
 
 const char *eval(const char *in, const size_t in_len, char *out,
                  const size_t out_len) {
-  enum Lexeme final_tok = LEX_DEFAULT;
+  enum Lexeme final_tok;
   int start = 0;
   int final_count = 0;
+  char err_char = '\0';
 
   for (size_t i = 0; i < in_len; i++) {
     const StringView sv = (StringView){in_len - i, &in[i]};
 
-    enum Lexeme tok = LEX_DEFAULT;
+    enum Lexeme tok;
     int count = 0;
     for (size_t j = 0; j < sv.len; j++) {
       if (matches_number((StringView){j, sv.str_p})) {
@@ -43,6 +43,7 @@ const char *eval(const char *in, const size_t in_len, char *out,
       final_tok = tok;
     }
     if (sv.str_p[0] != ' ') {
+      err_char = sv.str_p[0];
       break;
     }
   }
@@ -50,20 +51,17 @@ const char *eval(const char *in, const size_t in_len, char *out,
   if (final_count != 0) {
     switch (final_tok) {
     case LEX_NUM:
-      snprintf(out, out_len, "%.*s is number", final_count, &in[start]);
+      snprintf(out, out_len, "'%.*s' is number", final_count, &in[start]);
       break;
     case LEX_PLUS:
-      snprintf(out, out_len, "%.*s is plus operator", final_count, &in[start]);
+      snprintf(out, out_len, "'%.*s' is plus operator", final_count, &in[start]);
       break;
     case LEX_TIMES:
-      snprintf(out, out_len, "%.*s is times operator", final_count, &in[start]);
-      break;
-    case LEX_DEFAULT:
-      snprintf(out, out_len, "default token for some reason");
+      snprintf(out, out_len, "'%.*s' is times operator", final_count, &in[start]);
       break;
     }
   } else {
-    snprintf(out, out_len, "unknown");
+    snprintf(out, out_len, "unknown '%c'", err_char);
   }
 
   return out;
