@@ -1,70 +1,88 @@
 
+#include <ctype.h>
 #define _GNU_SOURCE // for getline
 
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "match.h"
 #include "string_view.h"
+#include "tokenize.h"
 
-enum Lexeme {
-  LEX_NUM,
-  LEX_PLUS,
-  LEX_TIMES,
+#define ARRAY_SIZE(a) sizeof(a) / sizeof(*a)
+
+static const int INVALID_TOKEN_TYPE = -1;
+
+enum TokenType {
+  TOKEN_LPAREN = 0,
+  TOKEN_RPAREN,
+  TOKEN_PLUS,
+  TOKEN_MINUS,
+  TOKEN_TIMES,
+  TOKEN_DIVIDES,
+  TOKEN_NUM,
 };
 
-const char *eval(const char *in, const size_t in_len, char *out,
-                 const size_t out_len) {
-  enum Lexeme final_tok;
-  int start = 0;
-  int final_count = 0;
-  char err_char = '\0';
+static const struct SingleCharTokenEntry SYMBOL_ENTRIES[] = {
+    {'(', TOKEN_LPAREN}, {')', TOKEN_RPAREN}, {'+', TOKEN_PLUS},
+    {'-', TOKEN_MINUS},  {'*', TOKEN_TIMES},  {'/', TOKEN_DIVIDES},
+};
 
-  for (size_t i = 0; i < in_len; i++) {
-    const StringView sv = (StringView){in_len - i, &in[i]};
+static const struct SingleCharTokenEntry NUM_ENTRIES[] = {
+    {'0', TOKEN_NUM}, {'1', TOKEN_NUM}, {'2', TOKEN_NUM}, {'3', TOKEN_NUM},
+    {'4', TOKEN_NUM}, {'5', TOKEN_NUM}, {'6', TOKEN_NUM}, {'7', TOKEN_NUM},
+    {'8', TOKEN_NUM}, {'9', TOKEN_NUM}};
 
-    enum Lexeme tok;
-    int count = 0;
-    for (size_t j = 0; j < sv.len; j++) {
-      if (matches_number((StringView){j, sv.str_p})) {
-        count = (int)j;
-        tok = LEX_NUM;
-      } else if (matches_char('+', (StringView){j, sv.str_p})) {
-        count = (int)j;
-        tok = LEX_PLUS;
-      } else if (matches_char('*', (StringView){j, sv.str_p})) {
-        count = (int)j;
-        tok = LEX_TIMES;
-      }
-    }
-    if (count > final_count) {
-      start = (int)i;
-      final_count = count;
-      final_tok = tok;
-    }
-    if (sv.str_p[0] != ' ') {
-      err_char = sv.str_p[0];
-      break;
-    }
+struct TokenizerContext {
+  struct SingleCharTokenizer symbol_tokenizer;
+  struct SingleCharTokenizer num_tokenizer;
+};
+
+struct TokenizerContext create_static_tokenizer(void) {
+  struct TokenizerContext res = {0};
+  sc_tokenizer_init(&res.symbol_tokenizer, //
+                    ARRAY_SIZE(SYMBOL_ENTRIES),
+                    SYMBOL_ENTRIES, //
+                    INVALID_TOKEN_TYPE);
+  sc_tokenizer_init(&res.num_tokenizer, //
+                    ARRAY_SIZE(NUM_ENTRIES),
+                    NUM_ENTRIES, //
+                    INVALID_TOKEN_TYPE);
+  return res;
+}
+
+enum TokenizerErrorType try_tokenize(struct TokenizerContext *context,
+                                     struct StringView *sv,
+                                     enum TokenType *out) {
+  while (sv->len > 0 && isspace(sv->str_p[0])) {
+    sv_consume_char(sv);
+  }
+  if (sv->len == 0) {
+    return TOKEN_ERROR_EOF;
+  }
+  int token_type = INVALID_TOKEN_TYPE;
+
+  if (sc_try_tokenize(&context->symbol_tokenizer, sv->str_p[0], &token_type) ==
+      TOKEN_ERROR_NONE) {
+    *out = (enum TokenType)token_type;
+    sv_consume_char(sv);
+    return TOKEN_ERROR_NONE;
   }
 
-  if (final_count != 0) {
-    switch (final_tok) {
-    case LEX_NUM:
-      snprintf(out, out_len, "'%.*s' is number", final_count, &in[start]);
-      break;
-    case LEX_PLUS:
-      snprintf(out, out_len, "'%.*s' is plus operator", final_count, &in[start]);
-      break;
-    case LEX_TIMES:
-      snprintf(out, out_len, "'%.*s' is times operator", final_count, &in[start]);
-      break;
+  if (sc_try_tokenize(&context->num_tokenizer, sv->str_p[0], &token_type) ==
+      TOKEN_ERROR_NONE) {
+    *out = (enum TokenType)token_type;
+    sv_consume_char(sv);
+
+    while (sv->len > 0 &&
+           (sc_try_tokenize(&context->num_tokenizer, sv->str_p[0],
+                            &token_type) == TOKEN_ERROR_NONE)) {
+      *out = (enum TokenType)token_type;
+      sv_consume_char(sv);
     }
-  } else {
-    snprintf(out, out_len, "unknown '%c'", err_char);
+    return TOKEN_ERROR_NONE;
   }
 
-  return out;
+  return TOKEN_ERROR_UNEXPECTED;
 }
 
 int main(void) {
@@ -72,14 +90,47 @@ int main(void) {
   size_t n = 0;
   ssize_t len = 0;
 
-  char out[512];
+  struct TokenizerContext tokenizer =
+      create_static_tokenizer(); // this can be changed later on
 
   printf("Press Ctrl+d to exit.\n\n");
   printf("> ");
 
   while (0 < (len = getline(&line_p, &n, stdin))) {
-    printf("%s\n", eval(line_p, (size_t)len, out, sizeof(out)));
-    printf("> ");
+    struct StringView sv = {.len = (size_t)len, .str_p = line_p};
+    enum TokenizerErrorType e = TOKEN_ERROR_NONE;
+    enum TokenType t = (enum TokenType)INVALID_TOKEN_TYPE;
+
+    while ((e = try_tokenize(&tokenizer, &sv, &t)) != TOKEN_ERROR_EOF) {
+      if (e == TOKEN_ERROR_UNEXPECTED) {
+        printf("unexpected: %c", sv.str_p[0]);
+        break;
+      }
+      switch (t) {
+      case TOKEN_LPAREN:
+        printf("LPAREN ");
+        break;
+      case TOKEN_RPAREN:
+        printf("RPAREN ");
+        break;
+      case TOKEN_PLUS:
+        printf("PLUS ");
+        break;
+      case TOKEN_MINUS:
+        printf("MINUS ");
+        break;
+      case TOKEN_TIMES:
+        printf("TIMES ");
+        break;
+      case TOKEN_DIVIDES:
+        printf("DIVIDES ");
+        break;
+      case TOKEN_NUM:
+        printf("NUM ");
+        break;
+      }
+    }
+    printf("\n> ");
   }
   free(line_p);
   return 0;
