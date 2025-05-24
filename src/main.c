@@ -50,11 +50,18 @@ struct TokenizerContext create_static_tokenizer(void) {
   return res;
 }
 
+static inline void consume_char(struct StringView *sv, unsigned *curr_pos) {
+  assert(sv->len != 0);
+  sv->len = sv->len - 1;
+  sv->str_p = &sv->str_p[1];
+  *curr_pos = *curr_pos + 1;
+}
+
 enum TokenizerErrorType try_tokenize(struct TokenizerContext *context,
-                                     struct StringView *sv,
-                                     enum TokenType *out) {
+                                     struct StringView *sv, enum TokenType *out,
+                                     unsigned *curr_pos) {
   while (sv->len > 0 && isspace(sv->str_p[0])) {
-    sv_consume_char(sv);
+    consume_char(sv, curr_pos);
   }
   if (sv->len == 0) {
     return TOKEN_ERROR_EOF;
@@ -64,20 +71,20 @@ enum TokenizerErrorType try_tokenize(struct TokenizerContext *context,
   if (sc_try_tokenize(&context->symbol_tokenizer, sv->str_p[0], &token_type) ==
       TOKEN_ERROR_NONE) {
     *out = (enum TokenType)token_type;
-    sv_consume_char(sv);
+    consume_char(sv, curr_pos);
     return TOKEN_ERROR_NONE;
   }
 
   if (sc_try_tokenize(&context->num_tokenizer, sv->str_p[0], &token_type) ==
       TOKEN_ERROR_NONE) {
     *out = (enum TokenType)token_type;
-    sv_consume_char(sv);
+    consume_char(sv, curr_pos);
 
     while (sv->len > 0 &&
            (sc_try_tokenize(&context->num_tokenizer, sv->str_p[0],
                             &token_type) == TOKEN_ERROR_NONE)) {
       *out = (enum TokenType)token_type;
-      sv_consume_char(sv);
+      consume_char(sv, curr_pos);
     }
     return TOKEN_ERROR_NONE;
   }
@@ -100,10 +107,13 @@ int main(void) {
     struct StringView sv = {.len = (size_t)len, .str_p = line_p};
     enum TokenizerErrorType e = TOKEN_ERROR_NONE;
     enum TokenType t = (enum TokenType)INVALID_TOKEN_TYPE;
+    unsigned curr_pos = 0;
 
-    while ((e = try_tokenize(&tokenizer, &sv, &t)) != TOKEN_ERROR_EOF) {
+    while ((e = try_tokenize(&tokenizer, &sv, &t, &curr_pos)) !=
+           TOKEN_ERROR_EOF) {
       if (e == TOKEN_ERROR_UNEXPECTED) {
-        printf("unexpected: %c", sv.str_p[0]);
+        printf("unexpected '%c' at character position %u", sv.str_p[0],
+               curr_pos);
         break;
       }
       switch (t) {
