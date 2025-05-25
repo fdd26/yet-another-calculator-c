@@ -3,10 +3,14 @@ project(yet-another-calculator-c)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_compile_options(-Wall -Wextra -Wshadow -Wconversion -pedantic -ggdb3 -Wmaybe-uninitialized -std=gnu11)
-
-add_compile_options(-fsanitize=address -fsanitize=undefined)
-add_link_options(-fsanitize=address -fsanitize=undefined)
+if (MSVC)
+	add_compile_options(/W4 /Zi)
+else()
+	add_compile_options(-Wall -Wextra -Wshadow -Wconversion -pedantic -ggdb3 -Wmaybe-uninitialized -std=gnu11)
+	
+	add_compile_options(-fsanitize=address -fsanitize=undefined)
+	add_link_options(-fsanitize=address -fsanitize=undefined)
+endif()
 
 add_executable (calc
 	./src/main.c
