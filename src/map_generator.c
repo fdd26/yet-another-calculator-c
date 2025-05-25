@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-enum TokenType {
+typedef enum TokenType {
 	TOKEN_LPAREN  = 0,
 	TOKEN_RPAREN  = 1,
 	TOKEN_PLUS    = 2,
@@ -10,10 +10,11 @@ enum TokenType {
 	TOKEN_TIMES   = 4,
 	TOKEN_DIVIDES = 5,
 	TOKEN_NUM     = 6,
-	TOKEN_LENGTH  = 7
-};
+	TOKEN_INVALID = 7,
+	TOKEN_LENGTH  = 8
+} TokenType_t;
 
-static char* TOKENS[] = {
+static const char* TOKEN_NAMES[] = {
 	"TOKEN_LPAREN",
 	"TOKEN_RPAREN",
 	"TOKEN_PLUS",
@@ -21,29 +22,32 @@ static char* TOKENS[] = {
 	"TOKEN_TIMES",
 	"TOKEN_DIVIDES",
 	"TOKEN_NUM",
+	"TOKEN_INVALID",
 	"TOKEN_LENGTH",
+	"",
 	NULL
 };
 
-enum TokenizerErrorType {
+typedef enum TokenizerErrorType {
 	TOKEN_ERROR_NONE       = 0,
 	TOKEN_ERROR_UNEXPECTED = 1,
 	TOKEN_ERROR_EOF        = 2,
 	TOKEN_ERROR_LENGTH     = 3
-};
+} TokenizerErrorType_t;
 
 static const char* TOKENIZER_ERROR_TYPE_NAME[] = {
 	"TOKEN_ERROR_NONE",
 	"TOKEN_ERROR_UNEXPECTED",
 	"TOKEN_ERROR_EOF",
 	"TOKEN_ERROR_LENGTH",
+	"",
 	NULL
 };
 
-struct SingleCharTokenEntry {
+typedef struct SingleCharTokenEntry {
 	char c;
 	enum TokenType type;
-};
+} SingleCharTokenEntry_t;
 
 static const struct SingleCharTokenEntry ALL_ENTRIES[] = {
 	{'(', TOKEN_LPAREN},
@@ -68,7 +72,7 @@ static const struct SingleCharTokenEntry ALL_ENTRIES[] = {
 /**
  * Convert array list into a lookup table
  */
-static struct SingleCharTokenEntry MAP_ENTRY[257] = { 0 };
+static struct SingleCharTokenEntry MAP_ENTRY[257] = { { 0, 0 } };
 
 /**
  * Fill up the lookup table
@@ -85,7 +89,7 @@ static void fill_map_entry()
 	}
 }
 
-static struct SingleCharTokenEntry getTokenEntry(size_t i)
+static const struct SingleCharTokenEntry getTokenEntry(size_t i)
 {
 	// OOB protection
 	if (i <= 0 || i > 255) { i = 0; }
@@ -101,20 +105,42 @@ static struct SingleCharTokenEntry getTokenEntry(size_t i)
 
 int main()
 {
-	printf("working\n");
+	fill_map_entry();
 
-	//fill_map_entry();
+	printf("#include <stdio.h>\n");
+	printf("#include <stdlib.h>\n");
+	printf("#include <string.h>\n");
+	printf("\n\n");
 
+	printf("// Code generated mapping\n");
+	printf("static struct SingleCharTokenEntry MAP_ENTRY[257] = {\n");
 	for(size_t i = 0; i < 256; ++i)
 	{
-		const unsigned char        ch0   = (const unsigned char) i;
-		const SingleCharTokenEntry entry = getTokenEntry(i); //MAP_ENTRY[i];
-		const const char           ch    = entry.c;
-		const enum TokenType       type  = entry.type;
+		const unsigned char                 ch0   = (const unsigned char) i;
+		const struct SingleCharTokenEntry   entry = getTokenEntry(i); //MAP_ENTRY[i];
+		const const char                    ch    = entry.c;
+		const enum  TokenType               type  = entry.type;
+		int                                 t     = (int) type;
 
-		printf("[%d][%x][%c][%x][%c][%d][%d]\n", i, ch0, (ch0 <= 32 ? ' ' : ch0), ch, (ch <= 32 ? ' ' : ch), ch, type);
+		// OOB check
+		if (t < 0 || t >= 7) { t = 7; }
+
+		const char*                    token_name = TOKEN_NAMES[ t ];
+
+		//printf("[%d][%x][%c][%x][%c][%d][%d]\n", i, ch0, (ch0 <= 32 ? ' ' : ch0), ch, (ch <= 32 ? ' ' : ch), ch, type);
+		if (i <= 32 || i > 126 || i == 34 || i == 39 || i == 92)
+		{
+			printf("\t{ %3d, %-13s },\n",    i, token_name);
+		}
+		else
+		{
+			printf("\t{ '%c', %-13s },\n", ch0, token_name);
+		}
 	}
 
-	printf("done\n");
+	printf("\t{   0, TOKEN_INVALID }\n");
+	printf("};\n");
+	printf("\n\n");
+
 	return 0;
 }
